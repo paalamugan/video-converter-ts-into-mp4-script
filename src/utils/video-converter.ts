@@ -168,9 +168,9 @@ const initRequest = (
       const file = fse.createWriteStream(tmpTsChunkPath);
 
       console.log(
-        `${color.cyan}Downloading(${color.yellow}${fileName}${color.cyan}): ${
-          color.normal + startIndex
-        }.ts`
+        `${color.cyan}Downloading(${color.yellow}${fileName}${
+          color.cyan
+        }): ${color.normal + startIndex}.ts`
       );
 
       const newUrl = new URL(url);
@@ -195,9 +195,8 @@ const initRequest = (
         file.on('error', onErrorCallback);
         file.on('finish', () => {
           console.log(
-            `${color.cyan}Downloaded(${fileName}): ${
-              color.yellow + startIndex
-            }.ts`
+            `${color.cyan}Downloaded(${fileName}): ${color.yellow +
+              startIndex}.ts`
           );
           file.close();
         });
@@ -219,15 +218,17 @@ const deleteAllTmpCollectionFiles = (outputFilePath: string) => {
       fse.removeSync(tmpCollectionDirPath);
       fse.removeSync(outputFilePath);
       console.log(
-        `${color.cyan}>> Delete!${color.normal} Successfully Deleted in :${
-          color.yellow + fileName
-        }${color.normal}`
+        `${color.cyan}>> Delete!${
+          color.normal
+        } Successfully Deleted in :${color.yellow + fileName}${color.normal}`
       );
     } catch (err) {
       console.error(
-        `${color.red} >> Error: ${color.normal} Delete failed in ${
-          color.yellow + fileName
-        }${color.normal}. Reason: ${err}`
+        `${color.red} >> Error: ${
+          color.normal
+        } Delete failed in ${color.yellow + fileName}${
+          color.normal
+        }. Reason: ${err}`
       );
     }
   });
@@ -250,9 +251,9 @@ export const getVideoDownloadStream = async (
 
     console.log(color.normal);
     console.log(
-      `${color.green}>> Done!${color.normal} Downloaded ${
-        color.yellow + totalCount + color.normal
-      } .ts files. Now let's merge them all into one..`
+      `${color.green}>> Done!${color.normal} Downloaded ${color.yellow +
+        totalCount +
+        color.normal} .ts files. Now let's merge them all into one..`
     );
     console.log('');
     await sleep(1000);
@@ -265,9 +266,11 @@ export const getVideoDownloadStream = async (
     return outputStream;
   } catch (err) {
     console.error(
-      `${color.red} >> Download failed: ${color.normal} While Downloading ${
-        color.yellow + fileName
-      }${color.normal} video. Please try again.`
+      `${color.red} >> Download failed: ${
+        color.normal
+      } While Downloading ${color.yellow + fileName}${
+        color.normal
+      } video. Please try again.`
     );
     console.error(color.red + err + color.normal);
     console.log('');
