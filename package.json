@@ -1,0 +1,78 @@
+{
+  "name": "video-converter-ts-into-mp4",
+  "version": "0.1.0",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "module": "dist/video-converter-ts-into-mp4.esm.js",
+  "typings": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=10"
+  },
+  "scripts": {
+    "tsdx": "tsdx --target node",
+    "dev": "yarn tsdx watch",
+    "dev:transpile": "yarn start --transpileOnly",
+    "build": "yarn tsdx build",
+    "lint": "yarn tsdx lint",
+    "lint:fix": "yarn lint --fix",
+    "test": "yarn tsdx test",
+    "test:watch": "yarn test --watch",
+    "test:coverage": "yarn test --coverage",
+    "prepare": "yarn build",
+    "size": "size-limit",
+    "analyze": "size-limit --why"
+  },
+  "dependencies": {
+    "@ffprobe-installer/ffprobe": "^2.0.0",
+    "ffmpeg-static": "^5.1.0",
+    "ffprobe-static": "^3.1.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "fs-extra": "^11.1.0"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "tsdx lint"
+    }
+  },
+  "prettier": {
+    "printWidth": 80,
+    "semi": true,
+    "singleQuote": true,
+    "trailingComma": "es5"
+  },
+  "author": "paalamugan",
+  "size-limit": [
+    {
+      "path": "dist/video-converter-ts-into-mp4.cjs.production.min.js",
+      "limit": "10 KB"
+    },
+    {
+      "path": "dist/video-converter-ts-into-mp4.esm.js",
+      "limit": "10 KB"
+    }
+  ],
+  "devDependencies": {
+    "@rollup/plugin-alias": "^4.0.3",
+    "@rollup/plugin-node-resolve": "^15.0.1",
+    "@size-limit/preset-small-lib": "^8.2.4",
+    "@types/ffprobe-static": "^2.0.1",
+    "@types/fluent-ffmpeg": "^2.1.21",
+    "@types/fs-extra": "^11.0.1",
+    "husky": "^8.0.3",
+    "rollup-plugin-typescript2": "^0.34.1",
+    "size-limit": "^8.2.4",
+    "tsdx": "^0.14.1",
+    "tslib": "^2.5.0",
+    "typescript": "^4.9.5",
+    "typescript-transform-paths": "^3.4.6"
+  },
+  "resolutions": {
+    "rollup": "^2.79.1",
+    "tsdx/rollup-plugin-typescript2": "^0.34.1",
+    "tsdx/typescript": "^4.9.5"
+  }
+}
