@@ -226,7 +226,7 @@ const deleteAllTmpCollectionFiles = (fileName: string) => {
   fse.removeSync(tmpCollectionDirPath);
 };
 
-export const convertVideoFileStream = (
+export const convertVideoToFileStream = (
   inputPath: string,
   format: string = 'mp4'
 ) => {
@@ -248,7 +248,10 @@ export const convertVideoFileStream = (
   return streamCommand.pipe();
 };
 
-export const convertVideoFileSave = (inputPath: string, outputPath: string) => {
+export const convertVideoToFileSave = (
+  inputPath: string,
+  outputPath: string
+) => {
   if (!path.extname(outputPath).length) {
     throw new Error('Please provide outputPath file path with extension name.');
   }
@@ -293,7 +296,7 @@ export const getVideoFileDownloader = async <
 ): Promise<
   T extends string
     ? FFProbe
-    : Awaited<ReturnType<typeof convertVideoFileStream>>
+    : Awaited<ReturnType<typeof convertVideoToFileStream>>
 > => {
   const {
     name,
@@ -337,9 +340,9 @@ export const getVideoFileDownloader = async <
 
     let result: any;
     if (typeof outputPath === 'string') {
-      result = await convertVideoFileSave(tsOutputFilePath, outputPath);
+      result = await convertVideoToFileSave(tsOutputFilePath, outputPath);
     } else {
-      result = convertVideoFileStream(tsOutputFilePath, format);
+      result = convertVideoToFileStream(tsOutputFilePath, format);
     }
 
     return result;
