@@ -1,8 +1,10 @@
 import https from 'https';
 import http from 'http';
 import path from 'path';
+import crypto from 'crypto';
 import fse from 'fs-extra';
-import ffmpeg from '../lib/ffmpeg';
+import { ffmpeg, ffprobe } from '../lib/ffmpeg';
+import type { VideoFileDownloaderOptions } from '../types';
 
 const command = ffmpeg();
 // execSync(
@@ -24,21 +26,18 @@ const color = {
   red: '\x1b[31m',
 };
 
-const rootPath = process.cwd();
+const tmpPath = path.resolve(__dirname, '..', 'tmp');
 
-const tmpPath = path.resolve(rootPath, 'tmp');
-const outputPath = path.resolve(rootPath, 'output');
-
-const getCurrentDate = () => {
-  const date = new Date();
-  return date
-    .toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    })
-    .replace(/\//g, '-');
-};
+// const getCurrentDate = () => {
+//   const date = new Date();
+//   return date
+//     .toLocaleDateString('en-US', {
+//       year: 'numeric',
+//       month: '2-digit',
+//       day: '2-digit',
+//     })
+//     .replace(/\//g, '-');
+// };
 
 const kebabCase = (str: string) => {
   return str
@@ -47,27 +46,19 @@ const kebabCase = (str: string) => {
     .toLowerCase();
 };
 
+const isString = (value: unknown): value is string => {
+  return typeof value === 'string' || value instanceof String;
+};
+
 const getTmpCollectionDirPath = (fileName: string) => {
-  const currentDate = getCurrentDate();
-  return path.resolve(tmpPath, currentDate, fileName);
-};
-
-const getOutputCollectionDirPath = () => {
-  const currentDate = getCurrentDate();
-  return path.resolve(outputPath, currentDate);
-};
-
-const getOutputCollectionFilePath = (fileName: string, ext: string) => {
-  return path.resolve(getOutputCollectionDirPath(), `${fileName}.${ext}`);
+  // const currentDate = getCurrentDate();
+  // return path.resolve(tmpPath, currentDate, fileName);
+  return path.resolve(tmpPath, fileName);
 };
 
 const getTmpCollectionFilePath = (fileName: string, ext: string) => {
   return path.resolve(getTmpCollectionDirPath(fileName), `${fileName}.${ext}`);
 };
-
-// const getDownloadAPIUrl = (hash: string) => {
-//   return `https://c-an-ca1.betterstream.cc:2223/hls-playback/${hash}/seg-{{index}}-f2-v1-a1.ts`;
-// };
 
 const sleep = (ms: number) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -97,35 +88,50 @@ const mergeMultipleTsFileToSingle = (fileName: string) => {
   });
 };
 
-const convertTsFileToMp4 = (tsOutputFilePath: string) => {
-  return new Promise<string>((resolve, reject) => {
-    const fileName = path.basename(tsOutputFilePath).split('.')[0];
-    const finalOutputFilePath = getOutputCollectionFilePath(fileName, 'mp4');
-    command
-      .clone()
-      .addInput(tsOutputFilePath)
-      .audioCodec('copy')
-      .videoCodec('copy')
-      .addOutputOption('-hide_banner')
-      .save(finalOutputFilePath)
-      .on('error', reject)
-      .on('end', () => {
-        console.log(
-          `${color.green}>> Successfully Converted ts file into MP4: ${color.normal}${finalOutputFilePath}`
-        );
-        resolve(finalOutputFilePath);
-      });
-  });
+const statusProgressConsole = (
+  command: ffmpeg.FfmpegCommand,
+  options?: {
+    name: string;
+    format?: string;
+    resolve?: () => void;
+    reject?: (reason?: any) => void;
+  }
+) => {
+  const { name = '', resolve, reject, format = '' } = options || {};
+  return command
+    .on('start', function (_cmd) {
+      // console.log(`Started: ${color.cyan}${cmd}`);
+      // console.log(' ');
+    })
+    .on('progress', function (data) {
+      console.log(
+        `${color.green}>> Progress >>${color.normal} time: ${color.yellow}${
+          data.timemark
+        }${color.normal}, percentage: ${color.yellow}${(
+          data.percent || 0
+        ).toFixed(2)} %${color.normal}`
+      );
+    })
+    .on('end', () => {
+      console.log(' ');
+      console.log(
+        `${color.green}>> Successfully Converted ts file into MP4. ${color.normal}File Name: ${name}.${format}`
+      );
+      resolve?.();
+    })
+    .on('error', (err) => {
+      console.log(
+        `${color.red}>> Error while converting ts file into MP4. ${color.normal}File Name: ${name}.${format}`
+      );
+      console.error(err);
+      reject?.(err);
+    });
 };
 
-const convertToMp4 = async (fileName: string) => {
-  const tsOutputFilePath = await mergeMultipleTsFileToSingle(fileName);
-  const finalOutputFilePath = await convertTsFileToMp4(tsOutputFilePath);
-  console.log(
-    `${color.green}>> Success!${color.normal} Successfully Downloaded: ${color.yellow}${fileName}`
-  );
-  console.log('');
-  return finalOutputFilePath;
+const getFileName = (filePath: string) => {
+  let fileName = path.basename(filePath).split('.')[0];
+  fileName = fileName || filePath.split('/').at(-1) || 'default';
+  return fileName;
 };
 
 const initRequest = (
@@ -168,15 +174,19 @@ const initRequest = (
       const file = fse.createWriteStream(tmpTsChunkPath);
 
       console.log(
-        `${color.cyan}Downloading(${color.yellow}${fileName}${
-          color.cyan
-        }): ${color.normal + startIndex}.ts`
+        `${color.cyan}Downloading(${color.yellow}${fileName}${color.cyan}): ${
+          color.normal + startIndex
+        }.ts`
       );
 
       const newUrl = new URL(url);
       const request = newUrl.protocol === 'https:' ? https : http;
       request.get(newUrl.href, (response) => {
-        if (response.statusCode && response.statusCode >= 300) {
+        if (
+          (response.statusCode && response.statusCode >= 300) ||
+          response.headers['content-type']?.includes('text') ||
+          response.headers['content-type']?.includes('application/json')
+        ) {
           fse.removeSync(tmpTsChunkPath);
           return onSuccessCallback();
         }
@@ -195,8 +205,9 @@ const initRequest = (
         file.on('error', onErrorCallback);
         file.on('finish', () => {
           console.log(
-            `${color.cyan}Downloaded(${fileName}): ${color.yellow +
-              startIndex}.ts`
+            `${color.cyan}Downloaded(${fileName}): ${
+              color.yellow + startIndex
+            }.ts`
           );
           file.close();
         });
@@ -210,82 +221,138 @@ const initRequest = (
   });
 };
 
-const deleteAllTmpCollectionFiles = (outputFilePath: string) => {
-  setImmediate(() => {
-    const fileName = path.basename(outputFilePath).split('.')[0];
-    try {
-      const tmpCollectionDirPath = getTmpCollectionDirPath(fileName);
-      fse.removeSync(tmpCollectionDirPath);
-      fse.removeSync(outputFilePath);
-      console.log(
-        `${color.cyan}>> Delete!${
-          color.normal
-        } Successfully Deleted in :${color.yellow + fileName}${color.normal}`
-      );
-    } catch (err) {
-      console.error(
-        `${color.red} >> Error: ${
-          color.normal
-        } Delete failed in ${color.yellow + fileName}${
-          color.normal
-        }. Reason: ${err}`
-      );
-    }
+const deleteAllTmpCollectionFiles = (fileName: string) => {
+  const tmpCollectionDirPath = getTmpCollectionDirPath(fileName);
+  fse.removeSync(tmpCollectionDirPath);
+};
+
+export const convertVideoFileStream = (
+  inputPath: string,
+  format: string = 'mp4'
+) => {
+  const streamCommand = command
+    .clone()
+    .addInput(inputPath)
+    .videoCodec('copy')
+    .audioCodec('copy')
+    .outputOption('-hide_banner')
+    .outputOption('-movflags frag_keyframe+empty_moov')
+    .outputOption('-bsf:a aac_adtstoasc')
+    .outputFormat(format);
+
+  statusProgressConsole(streamCommand, {
+    name: getFileName(inputPath),
+    format,
+  });
+
+  return streamCommand.pipe();
+};
+
+export const convertVideoFileSave = (inputPath: string, outputPath: string) => {
+  if (!path.extname(outputPath).length) {
+    throw new Error('Please provide outputPath file path with extension name.');
+  }
+
+  outputPath = path.isAbsolute(outputPath)
+    ? outputPath
+    : path.resolve(process.cwd(), outputPath);
+
+  const outputPathDir = path.dirname(outputPath);
+  fse.ensureDirSync(outputPathDir);
+
+  return new Promise<FFProbe>((resolve, reject) => {
+    const fileCommand = command
+      .clone()
+      .addInput(inputPath)
+      // .audioCodec('libmp3lame')
+      // .videoCodec('libx264')
+      .audioCodec('copy')
+      .videoCodec('copy')
+      .outputOption('-hide_banner');
+
+    const onResolve = () => resolve(ffprobe(outputPath));
+    const onReject = (err: Error) => reject(err);
+    statusProgressConsole(fileCommand, {
+      name: getFileName(inputPath),
+      format: path.extname(outputPath).replace('.', ''),
+      resolve: onResolve,
+      reject: onReject,
+    });
+    fileCommand.save(outputPath);
   });
 };
 
-export const getVideoDownloadStream = async (
-  url: string,
-  title: string,
-  start = 1,
-  stop?: number
-) => {
-  const fileName = kebabCase(title);
+export const getVideoFileDownloader = async <
+  T extends string | fse.WriteStream
+>(
+  inputPath: string,
+  outputPath: T,
+  options?: T extends string
+    ? Omit<VideoFileDownloaderOptions, 'format'>
+    : VideoFileDownloaderOptions
+): Promise<
+  T extends string
+    ? FFProbe
+    : Awaited<ReturnType<typeof convertVideoFileStream>>
+> => {
+  const {
+    name,
+    start = 1,
+    stop,
+    format,
+  } = (options as VideoFileDownloaderOptions) || {};
+
+  if (isString(outputPath) && !path.extname(outputPath).length) {
+    throw new Error('Please provide outputPath file path with extension name.');
+  }
+
+  let fileName = crypto.randomUUID();
+
+  if (isString(outputPath)) {
+    fileName = getFileName(outputPath);
+  }
+
+  fileName = name || kebabCase(fileName);
+
   try {
     fse.ensureDirSync(getTmpCollectionDirPath(fileName));
-    fse.ensureDirSync(getOutputCollectionDirPath());
 
-    const totalCount = await initRequest(url, fileName, start, stop);
+    const totalCount = await initRequest(inputPath, fileName, start, stop);
 
-    if (totalCount < 1) throw new Error('No video found.');
+    if (totalCount < 1) {
+      throw new Error(
+        `No video found in this url ${color.cyan}${inputPath}${color.normal}. Please provide a valid video format url.`
+      );
+    }
 
     console.log(color.normal);
     console.log(
-      `${color.green}>> Done!${color.normal} Downloaded ${color.yellow +
-        totalCount +
-        color.normal} .ts files. Now let's merge them all into one..`
+      `${color.green}>> Done!${color.normal} Downloaded ${
+        color.yellow + totalCount + color.normal
+      } .ts files. Now let's merge them all into one..`
     );
     console.log('');
     await sleep(1000);
-    const outputFilePath = await convertToMp4(fileName);
-    const outputStream = fse.createReadStream(outputFilePath);
+    const tsOutputFilePath = await mergeMultipleTsFileToSingle(fileName);
 
-    outputStream.on('end', () => {
-      deleteAllTmpCollectionFiles(outputFilePath);
-    });
-    return outputStream;
+    let result: any;
+    if (typeof outputPath === 'string') {
+      result = await convertVideoFileSave(tsOutputFilePath, outputPath);
+    } else {
+      result = convertVideoFileStream(tsOutputFilePath, format);
+    }
+
+    return result;
   } catch (err) {
     console.error(
-      `${color.red} >> Download failed: ${
-        color.normal
-      } While Downloading ${color.yellow + fileName}${
-        color.normal
-      } video. Please try again.`
+      `${color.red} >> Download failed: ${color.normal} While Downloading ${
+        color.yellow + fileName
+      }${color.normal} video. Please try again.`
     );
     console.error(color.red + err + color.normal);
     console.log('');
     throw err;
+  } finally {
+    deleteAllTmpCollectionFiles(fileName);
   }
 };
-
-// const url = getDownloadAPIUrl(
-//   "66152f4dfeb7ec9a44ed171bc73733febacb5ce920279f677b902c69e7d1de4070728a0b49a392cb707ecd6c94ba20e6b0ebc666d6307c743f993e6daa7de2238508b6408b24b4e09d8d21ea9ac06066344d567c6c0932de75c87f75c923cf9c66b143cf44c36456ca64c2237373b385488ea577d2a4bf480b81dcb91917e0c1bd571a7e2e9544aa3e1d03866324c55e9c3e71db4af32c74a16e89bdaea80b2d8231a7f45eb3276269e2b77e8a9f1735"
-// );
-
-// getVideoDownloadStream(url, "naruto-shippuden-episode-5")
-//   .then((stream) => {
-//     stream.pipe(
-//       fse.createWriteStream(getOutputCollectionFilePath("test", "mp4"))
-//     );
-//   })
-//   .catch(console.error);

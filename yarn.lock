@@ -3318,6 +3318,11 @@ ffmpeg-static@^5.1.0:
     https-proxy-agent "^5.0.0"
     progress "^2.0.3"
 
+ffprobe-client@^1.1.6:
+  version "1.1.6"
+  resolved "https://registry.yarnpkg.com/ffprobe-client/-/ffprobe-client-1.1.6.tgz#5fad0b148aa82bd8c855447de08a2bff02864e01"
+  integrity sha512-n+wNlD9QC0nHsBUJGYljYAB1gwtuNxXQh0V4Am6M2T3h8Is7qR2hwrrC5Pjc9YNE4MpIslaQUe7+c9wPCarVJQ==
+
 ffprobe-static@^3.1.0:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/ffprobe-static/-/ffprobe-static-3.1.0.tgz#982cfa1de111a4d6043f6fc208f64a82b53034c9"

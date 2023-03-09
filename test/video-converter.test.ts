@@ -1,9 +1,9 @@
-import { getVideoDownloadStream } from '../src';
+import { getVideoFileDownloader } from '../src';
 
 describe('video-converter', () => {
-  it('getVideoDownloadStream', () => {
+  it('getVideoFileDownloader', () => {
     expect(
-      getVideoDownloadStream('https://example.com/video.ts', 'video')
+      getVideoFileDownloader('https://example.com/video.ts', './video.ts')
     ).toBeDefined();
   });
 });

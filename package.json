@@ -13,10 +13,17 @@
   "engines": {
     "node": ">=16"
   },
+  "exports": {
+    ".": {
+      "import": "./dist/video-converter-ts-into-mp4.esm.js",
+      "require": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "tsdx": "tsdx --target node",
-    "dev": "yarn tsdx watch",
-    "dev:transpile": "yarn start --transpileOnly",
+    "dev": "yarn watch --transpileOnly",
+    "watch": "yarn tsdx watch",
     "build": "yarn tsdx build",
     "lint": "yarn tsdx lint src test",
     "lint:fix": "yarn lint --fix",
@@ -30,6 +37,7 @@
   "dependencies": {
     "@ffprobe-installer/ffprobe": "^2.0.0",
     "ffmpeg-static": "^5.1.0",
+    "ffprobe-client": "^1.1.6",
     "ffprobe-static": "^3.1.0",
     "fluent-ffmpeg": "^2.1.2",
     "fs-extra": "^11.1.0"
