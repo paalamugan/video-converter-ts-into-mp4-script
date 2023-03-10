@@ -65,30 +65,6 @@ const sleep = (ms: number) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
-const mergeMultipleTsFileToSingle = (fileName: string) => {
-  const segmentOutputFilePath = getTmpCollectionFilePath(fileName, 'txt');
-  const tsOutputFilePath = getTmpCollectionFilePath(fileName, 'ts');
-
-  return new Promise<string>(async (resolve, reject) => {
-    command
-      .clone()
-      .addInput(segmentOutputFilePath)
-      .inputFormat('concat')
-      .audioCodec('copy')
-      .videoCodec('copy')
-      .outputOption('-hide_banner')
-      .save(tsOutputFilePath)
-      .on('error', reject)
-      .on('end', () => {
-        console.log(
-          `${color.cyan}>> Successfully Merged multiple ts files into single: ${color.normal}${tsOutputFilePath}`
-        );
-        console.log('');
-        resolve(tsOutputFilePath);
-      });
-  });
-};
-
 const statusProgressConsole = (
   command: ffmpeg.FfmpegCommand,
   options?: {
@@ -222,6 +198,30 @@ const initRequest = (
   });
 };
 
+const mergeMultipleTsFileToSingle = (fileName: string) => {
+  const segmentOutputFilePath = getTmpCollectionFilePath(fileName, 'txt');
+  const tsOutputFilePath = getTmpCollectionFilePath(fileName, 'ts');
+
+  return new Promise<string>(async (resolve, reject) => {
+    command
+      .clone()
+      .addInput(segmentOutputFilePath)
+      .inputFormat('concat')
+      .audioCodec('copy')
+      .videoCodec('copy')
+      .outputOption('-hide_banner')
+      .save(tsOutputFilePath)
+      .on('error', reject)
+      .on('end', () => {
+        console.log(
+          `${color.cyan}>> Successfully Merged multiple ts files into single: ${color.normal}${tsOutputFilePath}`
+        );
+        console.log('');
+        resolve(tsOutputFilePath);
+      });
+  });
+};
+
 // const deleteAllTmpCollectionFiles = (fileName: string) => {
 //   const tmpCollectionDirPath = getTmpCollectionDirPath(fileName);
 //   fse.removeSync(tmpCollectionDirPath);
@@ -287,7 +287,9 @@ export const combineMultipleVideoIntoSingle = async <T extends string | null>(
   inputPath: string,
   outputPath: T,
   options?: VideoFileDownloaderOptions
-): Promise<T extends string ? FFProbe : WritableStream<Buffer>> => {
+): Promise<
+  T extends string ? FFProbe : ReturnType<typeof convertVideoIntoStream>
+> => {
   const {
     name,
     start = 1,
