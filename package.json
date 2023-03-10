@@ -82,7 +82,8 @@
     "tsdx/typescript": "^3.9.10"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "repository": {
     "type": "git",
