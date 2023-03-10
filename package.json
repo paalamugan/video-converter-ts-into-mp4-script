@@ -1,7 +1,7 @@
 {
   "name": "video-converter-ts-into-mp4",
   "description": "Converts .ts video files into .mp4 video files",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "license": "MIT",
   "main": "dist/index.js",
   "module": "dist/video-converter-ts-into-mp4.esm.js",
