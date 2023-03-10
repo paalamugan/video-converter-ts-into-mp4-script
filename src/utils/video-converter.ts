@@ -222,10 +222,10 @@ const mergeMultipleTsFileToSingle = (fileName: string) => {
   });
 };
 
-// const deleteAllTmpCollectionFiles = (fileName: string) => {
-//   const tmpCollectionDirPath = getTmpCollectionDirPath(fileName);
-//   fse.removeSync(tmpCollectionDirPath);
-// };
+const deleteAllTmpCollectionFiles = (fileName: string) => {
+  const tmpCollectionDirPath = getTmpCollectionDirPath(fileName);
+  fse.removeSync(tmpCollectionDirPath);
+};
 
 export const convertVideoIntoStream = (
   inputPath: string,
@@ -348,7 +348,7 @@ export const combineMultipleVideoIntoSingle = async <T extends string | null>(
     console.log('');
     throw err;
   } finally {
-    // deleteAllTmpCollectionFiles(fileName);
+    deleteAllTmpCollectionFiles(fileName);
   }
 };
 
