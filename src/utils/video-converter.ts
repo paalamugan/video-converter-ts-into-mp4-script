@@ -4,7 +4,8 @@ import path from 'path';
 import crypto from 'crypto';
 import fse from 'fs-extra';
 import { ffmpeg, ffprobe } from '../lib/ffmpeg';
-import type { VideoFileDownloaderOptions } from '../types';
+import type { FFProbe, VideoFileDownloaderOptions } from '../types';
+import { EXTENSION_REQUIRED_ERROR_MESSAGE } from '../constants';
 
 const command = ffmpeg();
 // execSync(
@@ -26,7 +27,7 @@ const color = {
   red: '\x1b[31m',
 };
 
-const tmpPath = path.resolve(__dirname, '..', 'tmp');
+const tmpPath = path.resolve(process.cwd(), 'tmp');
 
 // const getCurrentDate = () => {
 //   const date = new Date();
@@ -221,12 +222,12 @@ const initRequest = (
   });
 };
 
-const deleteAllTmpCollectionFiles = (fileName: string) => {
-  const tmpCollectionDirPath = getTmpCollectionDirPath(fileName);
-  fse.removeSync(tmpCollectionDirPath);
-};
+// const deleteAllTmpCollectionFiles = (fileName: string) => {
+//   const tmpCollectionDirPath = getTmpCollectionDirPath(fileName);
+//   fse.removeSync(tmpCollectionDirPath);
+// };
 
-export const convertVideoToFileStream = (
+export const convertVideoIntoStream = (
   inputPath: string,
   format: string = 'mp4'
 ) => {
@@ -248,12 +249,9 @@ export const convertVideoToFileStream = (
   return streamCommand.pipe();
 };
 
-export const convertVideoToFileSave = (
-  inputPath: string,
-  outputPath: string
-) => {
+export const convertVideoIntoFile = (inputPath: string, outputPath: string) => {
   if (!path.extname(outputPath).length) {
-    throw new Error('Please provide outputPath file path with extension name.');
+    throw new Error(EXTENSION_REQUIRED_ERROR_MESSAGE);
   }
 
   outputPath = path.isAbsolute(outputPath)
@@ -285,18 +283,14 @@ export const convertVideoToFileSave = (
   });
 };
 
-export const getVideoFileDownloader = async <
-  T extends string | fse.WriteStream
->(
+export const combineMultipleVideoIntoSingle = async <T extends string | null>(
   inputPath: string,
   outputPath: T,
-  options?: T extends string
-    ? Omit<VideoFileDownloaderOptions, 'format'>
-    : VideoFileDownloaderOptions
+  options?: VideoFileDownloaderOptions
 ): Promise<
   T extends string
     ? FFProbe
-    : Awaited<ReturnType<typeof convertVideoToFileStream>>
+    : Awaited<ReturnType<typeof convertVideoIntoStream>>
 > => {
   const {
     name,
@@ -306,7 +300,7 @@ export const getVideoFileDownloader = async <
   } = (options as VideoFileDownloaderOptions) || {};
 
   if (isString(outputPath) && !path.extname(outputPath).length) {
-    throw new Error('Please provide outputPath file path with extension name.');
+    throw new Error(EXTENSION_REQUIRED_ERROR_MESSAGE);
   }
 
   let fileName = crypto.randomUUID();
@@ -324,7 +318,7 @@ export const getVideoFileDownloader = async <
 
     if (totalCount < 1) {
       throw new Error(
-        `No video found in this url ${color.cyan}${inputPath}${color.normal}. Please provide a valid video format url.`
+        `No video was found in this specified url ${color.cyan}${inputPath}${color.normal}. Please provide a valid video format url.`
       );
     }
 
@@ -340,9 +334,9 @@ export const getVideoFileDownloader = async <
 
     let result: any;
     if (typeof outputPath === 'string') {
-      result = await convertVideoToFileSave(tsOutputFilePath, outputPath);
+      result = await convertVideoIntoFile(tsOutputFilePath, outputPath);
     } else {
-      result = convertVideoToFileStream(tsOutputFilePath, format);
+      result = convertVideoIntoStream(tsOutputFilePath, format);
     }
 
     return result;
@@ -356,6 +350,13 @@ export const getVideoFileDownloader = async <
     console.log('');
     throw err;
   } finally {
-    deleteAllTmpCollectionFiles(fileName);
+    // deleteAllTmpCollectionFiles(fileName);
   }
+};
+
+export const combineMultipleVideoIntoStream = (
+  inputPath: string,
+  options?: VideoFileDownloaderOptions
+) => {
+  return combineMultipleVideoIntoSingle(inputPath, null, options);
 };

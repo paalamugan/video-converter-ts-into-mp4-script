@@ -1,9 +1,12 @@
-import { getVideoFileDownloader } from '../src';
+import { combineMultipleVideoIntoSingle } from '../src';
 
 describe('video-converter', () => {
-  it('getVideoFileDownloader', () => {
+  it('combineMultipleVideoIntoSingle', () => {
     expect(
-      getVideoFileDownloader('https://example.com/video.ts', './video.ts')
+      combineMultipleVideoIntoSingle(
+        'https://example.com/video.ts',
+        './video.ts'
+      )
     ).toBeDefined();
   });
 });

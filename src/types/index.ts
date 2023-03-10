@@ -4,3 +4,7 @@ export interface VideoFileDownloaderOptions {
   start?: number;
   stop?: number;
 }
+
+export type FFProbe = Awaited<
+  ReturnType<typeof import('ffprobe-client')['default']>
+>;
