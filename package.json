@@ -32,7 +32,8 @@
     "test:coverage": "yarn test --coverage",
     "prepare": "yarn build",
     "size": "size-limit",
-    "analyze": "size-limit --why"
+    "analyze": "size-limit --why",
+    "release": "np"
   },
   "dependencies": {
     "@ffprobe-installer/ffprobe": "^2.0.0",
@@ -66,6 +67,7 @@
     "@types/fluent-ffmpeg": "^2.1.21",
     "@types/fs-extra": "^11.0.1",
     "husky": "^8.0.3",
+    "np": "^7.6.3",
     "rollup-plugin-typescript2": "^0.34.1",
     "size-limit": "^8.2.4",
     "tsdx": "^0.14.1",
@@ -77,5 +79,8 @@
     "rollup": "^2.79.1",
     "tsdx/rollup-plugin-typescript2": "^0.34.1",
     "tsdx/typescript": "^4.9.5"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
