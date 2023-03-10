@@ -287,11 +287,7 @@ export const combineMultipleVideoIntoSingle = async <T extends string | null>(
   inputPath: string,
   outputPath: T,
   options?: VideoFileDownloaderOptions
-): Promise<
-  T extends string
-    ? FFProbe
-    : Awaited<ReturnType<typeof convertVideoIntoStream>>
-> => {
+): Promise<T extends string ? FFProbe : WritableStream<Buffer>> => {
   const {
     name,
     start = 1,
