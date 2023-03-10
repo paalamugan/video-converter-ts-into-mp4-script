@@ -82,5 +82,13 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/paalamugan/video-converter-ts-into-mp4-script.git"
+  },
+  "bugs": {
+    "url": "https://github.com/paalamugan/video-converter-ts-into-mp4-script/issues"
+  },
+  "homepage": "https://github.com/paalamugan/video-converter-ts-into-mp4-script#readme"
 }
