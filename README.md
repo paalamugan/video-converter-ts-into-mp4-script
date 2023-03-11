@@ -1,6 +1,6 @@
 # Video Converter TS into MP4 Script
 
-Converts .ts video files into .mp4 video files
+Converts .ts video files into .mp4 video files and combine
 
 ## Commands
 
