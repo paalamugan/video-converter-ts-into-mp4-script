@@ -9,4 +9,4 @@ export interface VideoFileDownloaderOptions {
   deleteTmpFilesOnlyAfterError?: boolean;
 }
 
-export type FFProbe = import('ffprobe-client').FFProbe;
+export type FFProbe = import("ffprobe-client").FFProbe;
