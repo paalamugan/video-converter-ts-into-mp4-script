@@ -1,236 +1,40 @@
-import https from 'https';
-import http from 'http';
 import path from 'path';
 import crypto from 'crypto';
 import fse from 'fs-extra';
+import { Readable } from 'stream';
 import { ffmpeg, ffprobe } from '../lib/ffmpeg';
 import type { FFProbe, VideoFileDownloaderOptions } from '../types';
-import { EXTENSION_REQUIRED_ERROR_MESSAGE } from '../constants';
+import {
+  CONSOLE_COLOR,
+  DEFAULT_TMP_DIR,
+  EXTENSION_REQUIRED_ERROR_MESSAGE,
+} from '../constants';
+import {
+  getFileName,
+  getTmpCollectionDirPath,
+  isString,
+  kebabCase,
+  mergeMultipleTsFileToSingle,
+  recursiveRequest,
+  sleep,
+  statusProgressConsole,
+} from '../helper';
 
-const command = ffmpeg();
 // execSync(
 //   "ffmpeg -f concat -i segments.txt -c copy tsvideo.ts -hide_banner -nostats -loglevel 0 -y"
 // );
 // execSync(
 //   `ffmpeg -i tsvideo.ts -acodec copy -vcodec copy new-output.mp4 -hide_banner -nostats -loglevel 0 -y`
 // );
-// If the conversion doesn't give wanted results or doesn't convert at all, you can replace the second command with
+// If the video conversion doesn't give the results you suspected or doesn't convert at all, you can replace the second command with
 // "ffmpeg -i tsvideo.ts -qscale 0 new-output.mp4 -hide_banner -nostats -loglevel 0"
-// note that output fiel size will increase.
+// note that output field size will increase.
 
-// colors to make the console prettier
-const color = {
-  green: '\x1b[32m',
-  cyan: '\x1b[36m',
-  normal: '\x1b[37m',
-  yellow: '\x1b[33m',
-  red: '\x1b[31m',
-};
-
-const tmpPath = path.resolve(process.cwd(), 'tmp');
-
-// const getCurrentDate = () => {
-//   const date = new Date();
-//   return date
-//     .toLocaleDateString('en-US', {
-//       year: 'numeric',
-//       month: '2-digit',
-//       day: '2-digit',
-//     })
-//     .replace(/\//g, '-');
-// };
-
-const kebabCase = (str: string) => {
-  return str
-    .replace(/([a-z])([A-Z])/g, '$1-$2')
-    .replace(/\s+/g, '-')
-    .toLowerCase();
-};
-
-const isString = (value: unknown): value is string => {
-  return typeof value === 'string' || value instanceof String;
-};
-
-const getTmpCollectionDirPath = (fileName: string) => {
-  // const currentDate = getCurrentDate();
-  // return path.resolve(tmpPath, currentDate, fileName);
-  return path.resolve(tmpPath, fileName);
-};
-
-const getTmpCollectionFilePath = (fileName: string, ext: string) => {
-  return path.resolve(getTmpCollectionDirPath(fileName), `${fileName}.${ext}`);
-};
-
-const sleep = (ms: number) => {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-};
-
-const statusProgressConsole = (
-  command: ffmpeg.FfmpegCommand,
-  options?: {
-    name: string;
-    format?: string;
-    resolve?: () => void;
-    reject?: (reason?: any) => void;
-  }
-) => {
-  const { name = '', resolve, reject, format = '' } = options || {};
-  return command
-    .on('start', function (_cmd) {
-      // console.log(`Started: ${color.cyan}${cmd}`);
-      // console.log(' ');
-    })
-    .on('progress', function (data) {
-      console.log(
-        `${color.green}>> Progress >>${color.normal} time: ${color.yellow}${
-          data.timemark
-        }${color.normal}, percentage: ${color.yellow}${(
-          data.percent || 0
-        ).toFixed(2)} %${color.normal}`
-      );
-    })
-    .on('end', () => {
-      console.log(' ');
-      console.log(
-        `${color.green}>> Successfully Converted ts file into MP4. ${color.normal}File Name: ${name}.${format}`
-      );
-      resolve?.();
-    })
-    .on('error', (err) => {
-      console.log(
-        `${color.red}>> Error while converting ts file into MP4. ${color.normal}File Name: ${name}.${format}`
-      );
-      console.error(err);
-      reject?.(err);
-    });
-};
-
-const getFileName = (filePath: string) => {
-  let fileName = path.basename(filePath).split('.')[0];
-  fileName = fileName || filePath.split('/').at(-1) || 'default';
-  return fileName;
-};
-
-const initRequest = (
-  url: string,
-  fileName: string,
-  start: number,
-  stop?: number
-) => {
-  return new Promise<number>((initResolve, initReject) => {
-    const tmpSegmentPath = getTmpCollectionFilePath(fileName, 'txt'); // Where we will save all the info for ffmpeg will be stored.
-
-    if (fse.existsSync(tmpSegmentPath)) fse.removeSync(tmpSegmentPath); // If tmpSegmentPath is exists, delete it.
-
-    const makeRequest = (startIndex: number, stopIndex?: number) => {
-      const onSuccessCallback = () => {
-        initResolve(startIndex - 1);
-      };
-
-      const onNextRequest = () => {
-        fse.appendFileSync(tmpSegmentPath, `file '${startIndex}.ts'\r\n`);
-        makeRequest(startIndex + 1, stopIndex);
-      };
-
-      if (stopIndex && startIndex > stopIndex) return onSuccessCallback();
-
-      url = url.replace('{{index}}', startIndex.toString());
-
-      const tmpTsChunkPath = path.resolve(
-        getTmpCollectionDirPath(fileName),
-        `${startIndex}.ts`
-      );
-
-      if (fse.existsSync(tmpTsChunkPath)) return onNextRequest();
-
-      const onErrorCallback = (err: Error) => {
-        fse.removeSync(tmpTsChunkPath);
-        initReject(err);
-      };
-
-      const file = fse.createWriteStream(tmpTsChunkPath);
-
-      console.log(
-        `${color.cyan}Downloading(${color.yellow}${fileName}${color.cyan}): ${
-          color.normal + startIndex
-        }.ts`
-      );
-
-      const newUrl = new URL(url);
-      const request = newUrl.protocol === 'https:' ? https : http;
-      request.get(newUrl.href, (response) => {
-        if (
-          (response.statusCode && response.statusCode >= 300) ||
-          response.headers['content-type']?.includes('text') ||
-          response.headers['content-type']?.includes('application/json')
-        ) {
-          fse.removeSync(tmpTsChunkPath);
-          return onSuccessCallback();
-        }
-
-        // if (response.statusCode !== 200) {
-        //   const error = new Error(
-        //     `Request failed with status code ${
-        //       response.statusCode
-        //     } and headers: ${JSON.stringify(response.headers, null, 2)}`
-        //   );
-        //   return onErrorCallback(error);
-        // }
-
-        response.on('error', onErrorCallback);
-
-        file.on('error', onErrorCallback);
-        file.on('finish', () => {
-          console.log(
-            `${color.cyan}Downloaded(${fileName}): ${
-              color.yellow + startIndex
-            }.ts`
-          );
-          file.close();
-        });
-
-        response.pipe(file);
-        onNextRequest();
-      });
-    };
-
-    makeRequest(start, stop);
-  });
-};
-
-const mergeMultipleTsFileToSingle = (fileName: string) => {
-  const segmentOutputFilePath = getTmpCollectionFilePath(fileName, 'txt');
-  const tsOutputFilePath = getTmpCollectionFilePath(fileName, 'ts');
-
-  return new Promise<string>(async (resolve, reject) => {
-    command
-      .clone()
-      .addInput(segmentOutputFilePath)
-      .inputFormat('concat')
-      .audioCodec('copy')
-      .videoCodec('copy')
-      .outputOption('-hide_banner')
-      .save(tsOutputFilePath)
-      .on('error', reject)
-      .on('end', () => {
-        console.log(
-          `${color.cyan}>> Successfully Merged multiple ts files into single: ${color.normal}${tsOutputFilePath}`
-        );
-        console.log('');
-        resolve(tsOutputFilePath);
-      });
-  });
-};
-
-const deleteAllTmpCollectionFiles = (fileName: string) => {
-  const tmpCollectionDirPath = getTmpCollectionDirPath(fileName);
-  fse.removeSync(tmpCollectionDirPath);
-};
-
-export const convertVideoIntoStream = (
+export const convertVideoUrlIntoStream = (
   inputPath: string,
   format: string = 'mp4'
 ) => {
+  const command = ffmpeg();
   const streamCommand = command
     .clone()
     .addInput(inputPath)
@@ -241,27 +45,26 @@ export const convertVideoIntoStream = (
     .outputOption('-bsf:a aac_adtstoasc')
     .outputFormat(format);
 
-  statusProgressConsole(streamCommand, {
-    name: getFileName(inputPath),
-    format,
-  });
+  statusProgressConsole(streamCommand);
 
   return streamCommand.pipe();
 };
 
-export const convertVideoIntoFile = (inputPath: string, outputPath: string) => {
+export const convertVideoUrlIntoFile = (
+  inputPath: string,
+  outputPath: string
+) => {
   if (!path.extname(outputPath).length) {
     throw new Error(EXTENSION_REQUIRED_ERROR_MESSAGE);
   }
 
-  outputPath = path.isAbsolute(outputPath)
-    ? outputPath
-    : path.resolve(process.cwd(), outputPath);
+  outputPath = path.resolve(outputPath);
 
   const outputPathDir = path.dirname(outputPath);
   fse.ensureDirSync(outputPathDir);
 
   return new Promise<FFProbe>((resolve, reject) => {
+    const command = ffmpeg();
     const fileCommand = command
       .clone()
       .addInput(inputPath)
@@ -274,8 +77,7 @@ export const convertVideoIntoFile = (inputPath: string, outputPath: string) => {
     const onResolve = () => resolve(ffprobe(outputPath));
     const onReject = (err: Error) => reject(err);
     statusProgressConsole(fileCommand, {
-      name: getFileName(inputPath),
-      format: path.extname(outputPath).replace('.', ''),
+      outputPath: outputPath,
       resolve: onResolve,
       reject: onReject,
     });
@@ -283,18 +85,37 @@ export const convertVideoIntoFile = (inputPath: string, outputPath: string) => {
   });
 };
 
-export const combineMultipleVideoIntoSingle = async <T extends string | null>(
+export const convertStreamIntoBuffer = (
+  stream: ReturnType<typeof convertVideoUrlIntoStream>
+) => {
+  return new Promise<Buffer>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+    stream.on('finish', () => resolve(Buffer.concat(chunks)));
+    stream.on('error', (err) => reject(err));
+  });
+};
+
+export const convertBufferIntoReadableStream = (buffer: Buffer) => {
+  return Readable.from(buffer);
+};
+
+export const combineMultipleVideoUrlIntoFile = async <T extends string | null>(
   inputPath: string,
   outputPath: T,
   options?: VideoFileDownloaderOptions
 ): Promise<
-  T extends string ? FFProbe : ReturnType<typeof convertVideoIntoStream>
+  T extends string ? FFProbe : ReturnType<typeof convertVideoUrlIntoStream>
 > => {
   const {
     name,
     start = 1,
     stop,
     format,
+    tmpDir = DEFAULT_TMP_DIR,
+    deleteTmpFiles = false,
+    deleteTmpFilesOnlyAfterError = false,
+    deleteTmpFilesOnlyAfterSuccess = false,
   } = (options as VideoFileDownloaderOptions) || {};
 
   if (isString(outputPath) && !path.extname(outputPath).length) {
@@ -308,53 +129,75 @@ export const combineMultipleVideoIntoSingle = async <T extends string | null>(
   }
 
   fileName = name || kebabCase(fileName);
+  const tmpDirPath = getTmpCollectionDirPath(tmpDir, fileName);
+  fse.ensureDirSync(tmpDirPath);
+
+  const startIndex = start;
+  const stopIndex = /{{index}}/.test(inputPath) ? stop : 1;
 
   try {
-    fse.ensureDirSync(getTmpCollectionDirPath(fileName));
-
-    const totalCount = await initRequest(inputPath, fileName, start, stop);
+    const totalCount = await recursiveRequest({
+      url: inputPath,
+      tmpDir: tmpDirPath,
+      fileName,
+      start: startIndex,
+      stop: stopIndex,
+    });
 
     if (totalCount < 1) {
       throw new Error(
-        `No video was found in this specified url ${color.cyan}${inputPath}${color.normal}. Please provide a valid video format url.`
+        `No video was found in this specified url ${CONSOLE_COLOR.cyan}${inputPath}${CONSOLE_COLOR.normal}. Please provide a valid video format url.`
       );
     }
 
-    console.log(color.normal);
+    console.log(CONSOLE_COLOR.normal);
     console.log(
-      `${color.green}>> Done!${color.normal} Downloaded ${
-        color.yellow + totalCount + color.normal
+      `${CONSOLE_COLOR.green}>> Done!${CONSOLE_COLOR.normal} Downloaded ${
+        CONSOLE_COLOR.yellow + totalCount + CONSOLE_COLOR.normal
       } .ts files. Now let's merge them all into one..`
     );
     console.log('');
-    await sleep(1000);
-    const tsOutputFilePath = await mergeMultipleTsFileToSingle(fileName);
+    await sleep(500);
+
+    const tsOutputFilePath = await mergeMultipleTsFileToSingle(
+      tmpDirPath,
+      fileName
+    );
 
     let result: any;
     if (typeof outputPath === 'string') {
-      result = await convertVideoIntoFile(tsOutputFilePath, outputPath);
+      result = await convertVideoUrlIntoFile(tsOutputFilePath, outputPath);
     } else {
-      result = convertVideoIntoStream(tsOutputFilePath, format);
+      result = convertVideoUrlIntoStream(tsOutputFilePath, format);
     }
 
+    if (deleteTmpFilesOnlyAfterSuccess) {
+      fse.removeSync(tmpDirPath);
+    }
     return result;
   } catch (err) {
     console.error(
-      `${color.red} >> Download failed: ${color.normal} While Downloading ${
-        color.yellow + fileName
-      }${color.normal} video. Please try again.`
+      `${CONSOLE_COLOR.red} >> Download failed: ${
+        CONSOLE_COLOR.normal
+      } While Downloading ${CONSOLE_COLOR.yellow + fileName}${
+        CONSOLE_COLOR.normal
+      } video. Please try again.`
     );
-    console.error(color.red + err + color.normal);
+    console.error(CONSOLE_COLOR.red + err + CONSOLE_COLOR.normal);
     console.log('');
+    console.log(CONSOLE_COLOR.normal);
+    if (deleteTmpFilesOnlyAfterError) {
+      fse.removeSync(tmpDirPath);
+    }
     throw err;
   } finally {
-    deleteAllTmpCollectionFiles(fileName);
+    deleteTmpFiles && fse.removeSync(tmpDirPath);
   }
 };
 
-export const combineMultipleVideoIntoStream = (
+export const combineMultipleVideoUrlIntoStream = (
   inputPath: string,
   options?: VideoFileDownloaderOptions
 ) => {
-  return combineMultipleVideoIntoSingle(inputPath, null, options);
+  return combineMultipleVideoUrlIntoFile(inputPath, null, options);
 };

@@ -1,7 +1,7 @@
-import { combineMultipleVideoIntoSingle } from '../src';
+import { combineMultipleVideoUrlIntoFile } from '../src';
 
 describe('video-converter', () => {
-  it('combineMultipleVideoIntoSingle', () => {
-    expect(combineMultipleVideoIntoSingle).toBeDefined();
+  it('combineMultipleVideoUrlIntoFile', () => {
+    expect(combineMultipleVideoUrlIntoFile).toBeDefined();
   });
 });

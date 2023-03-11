@@ -6,6 +6,7 @@
   "main": "dist/index.js",
   "module": "dist/video-converter-ts-into-mp4.esm.js",
   "typings": "dist/index.d.ts",
+  "sideEffects": false,
   "files": [
     "dist"
   ],
@@ -20,7 +21,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "tsdx": "tsdx --target node",
+    "tsdx": "tsdx --target browser",
     "dev": "yarn watch --transpileOnly",
     "watch": "yarn tsdx watch",
     "build": "yarn tsdx build",
