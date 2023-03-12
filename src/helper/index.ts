@@ -183,7 +183,7 @@ export const recursiveRequest = ({
 
         response.pipe(file);
         promises.push(finished(file));
-        onNextRequest();
+        return onNextRequest();
       });
     };
 

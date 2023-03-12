@@ -37,7 +37,7 @@
     "multiple-ts-into-single-mp4"
   ],
   "scripts": {
-    "tsdx": "tsdx --target browser",
+    "tsdx": "tsdx --target node",
     "dev": "yarn watch --transpileOnly",
     "watch": "yarn tsdx watch",
     "build": "yarn tsdx build",
@@ -83,13 +83,13 @@
     "size-limit": "^8.2.4",
     "tsdx": "^0.14.1",
     "tslib": "^2.5.0",
-    "typescript": "^3.9.10",
+    "typescript": "^4.9.5",
     "typescript-transform-paths": "^3.4.6"
   },
   "resolutions": {
     "rollup": "^2.79.1",
     "tsdx/rollup-plugin-typescript2": "^0.34.1",
-    "tsdx/typescript": "^3.9.10"
+    "tsdx/typescript": "^4.9.5"
   },
   "publishConfig": {
     "access": "public",
