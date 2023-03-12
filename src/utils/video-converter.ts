@@ -3,7 +3,12 @@ import crypto from "crypto";
 import fse from "fs-extra";
 import { Readable } from "stream";
 import { ffmpeg, ffprobe } from "../lib/ffmpeg";
-import { FFProbe, VideoFileDownloaderOptions } from "../types";
+import {
+  FFProbe,
+  HashAlgorithm,
+  HashAlgorithmEncoding,
+  VideoFileDownloaderOptions,
+} from "../types";
 import { CONSOLE_COLOR, DEFAULT_TMP_DIR, EXTENSION_REQUIRED_ERROR_MESSAGE } from "../constants";
 import {
   getFileName,
@@ -12,7 +17,6 @@ import {
   kebabCase,
   mergeMultipleTsFileToSingle,
   recursiveRequest,
-  sleep,
   statusProgressConsole,
 } from "../helper";
 
@@ -25,6 +29,15 @@ import {
 // If the video conversion doesn't give the results you suspected or doesn't convert at all, you can replace the second command with
 // "ffmpeg -i tsvideo.ts -qscale 0 new-output.mp4 -hide_banner -nostats -loglevel 0"
 // note that output field size will increase.
+
+export const getHashKey = (
+  url: string,
+  algorithm: HashAlgorithm = "sha1",
+  encoding: HashAlgorithmEncoding = "hex"
+) => {
+  const hash = crypto.createHash(algorithm);
+  return hash.update(url).digest(encoding);
+};
 
 export const convertVideoUrlIntoStream = (inputPath: string, format: string = "mp4") => {
   const command = ffmpeg();
@@ -65,7 +78,10 @@ export const convertVideoUrlIntoFile = (inputPath: string, outputPath: string) =
       .outputOption("-hide_banner");
 
     const onResolve = () => resolve(ffprobe(outputPath));
-    const onReject = (err: Error) => reject(err);
+    const onReject = (err: Error) => {
+      fse.removeSync(outputPath);
+      reject(err);
+    };
     statusProgressConsole(fileCommand, {
       outputPath: outputPath,
       resolve: onResolve,
@@ -99,16 +115,16 @@ export const combineMultipleVideoUrlIntoFile = async <T extends string | null>(
     stop,
     format,
     tmpDir = DEFAULT_TMP_DIR,
-    deleteTmpFiles = false,
-    deleteTmpFilesOnlyAfterError = false,
-    deleteTmpFilesOnlyAfterSuccess = false,
+    deleteTmpChunkFiles = true,
+    deleteTmpChunkFilesAfterError = false,
+    deleteTmpChunkFilesAfterSuccess = false,
   } = (options as VideoFileDownloaderOptions) || {};
 
   if (isString(outputPath) && !path.extname(outputPath).length) {
     throw new Error(EXTENSION_REQUIRED_ERROR_MESSAGE);
   }
 
-  let fileName = crypto.randomUUID();
+  let fileName = getHashKey(inputPath);
 
   if (isString(outputPath)) {
     fileName = getFileName(outputPath);
@@ -132,7 +148,7 @@ export const combineMultipleVideoUrlIntoFile = async <T extends string | null>(
 
     if (totalCount < 1) {
       throw new Error(
-        `No video was found in this specified url ${CONSOLE_COLOR.cyan}${inputPath}${CONSOLE_COLOR.normal}. Please provide a valid video format url.`
+        `No video was found in this specified url "${inputPath}". Please provide a valid video format url.`
       );
     }
 
@@ -142,8 +158,6 @@ export const combineMultipleVideoUrlIntoFile = async <T extends string | null>(
         totalCount +
         CONSOLE_COLOR.normal} .ts files. Now let's merge them all into one..`
     );
-    console.log("");
-    await sleep(500);
 
     const tsOutputFilePath = await mergeMultipleTsFileToSingle(tmpDirPath, fileName);
 
@@ -154,27 +168,34 @@ export const combineMultipleVideoUrlIntoFile = async <T extends string | null>(
       result = convertVideoUrlIntoStream(tsOutputFilePath, format);
     }
 
-    if (deleteTmpFilesOnlyAfterSuccess) {
+    if (deleteTmpChunkFilesAfterSuccess) {
       fse.removeSync(tmpDirPath);
     }
     return result;
   } catch (err) {
-    console.error(
-      `${CONSOLE_COLOR.red} >> Download failed: ${
-        CONSOLE_COLOR.normal
-      } While Downloading ${CONSOLE_COLOR.yellow + fileName}${
-        CONSOLE_COLOR.normal
-      } video. Please try again.`
-    );
+    const terminalErrorMessage = `${CONSOLE_COLOR.red} >> Download failed: ${
+      CONSOLE_COLOR.normal
+    } While Downloading ${CONSOLE_COLOR.yellow + inputPath}${CONSOLE_COLOR.normal} video.`;
+
+    console.error(terminalErrorMessage);
+    console.log("");
     console.error(CONSOLE_COLOR.red + err + CONSOLE_COLOR.normal);
     console.log("");
-    console.log(CONSOLE_COLOR.normal);
-    if (deleteTmpFilesOnlyAfterError) {
+    if (deleteTmpChunkFilesAfterError) {
       fse.removeSync(tmpDirPath);
     }
-    throw err;
+
+    const errorMessage = `Download failed: While Downloading ${inputPath} video.`;
+    throw new Error(errorMessage, {
+      cause: {
+        fileId: fileName,
+        err: {
+          message: (err as Error).message,
+        },
+      },
+    });
   } finally {
-    deleteTmpFiles && fse.removeSync(tmpDirPath);
+    deleteTmpChunkFiles && fse.removeSync(tmpDirPath);
   }
 };
 

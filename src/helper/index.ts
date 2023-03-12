@@ -1,6 +1,7 @@
 import https from "https";
 import http from "http";
 import path from "path";
+import { finished } from "stream/promises";
 import fse from "fs-extra";
 import { ffmpeg } from "../lib/ffmpeg";
 import { CONSOLE_COLOR } from "../constants";
@@ -37,10 +38,6 @@ export const getTmpCollectionFilePath = (tmpDir: string, fileName: string, ext: 
   return path.resolve(tmpDir, `${fileName}.${ext}`);
 };
 
-export const sleep = (ms: number) => {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-};
-
 export const statusProgressConsole = (
   command: ffmpeg.FfmpegCommand,
   options?: {
@@ -50,10 +47,11 @@ export const statusProgressConsole = (
   }
 ) => {
   const { outputPath, resolve, reject } = options || {};
+  const format = path.extname(outputPath || "").replace(".", "") || "mp4";
   return command
-    .on("start", function(_cmd) {
-      // console.log(`Started: ${CONSOLE_COLOR.cyan}${cmd}`);
-      // console.log(' ');
+    .on("start", function(cmd) {
+      console.log(`Started: ${CONSOLE_COLOR.cyan}${cmd}`);
+      console.log(" ");
     })
     .on("progress", function(data) {
       console.log(
@@ -65,24 +63,22 @@ export const statusProgressConsole = (
       );
     })
     .on("end", () => {
-      console.log(" ");
+      console.log("");
       if (outputPath) {
         console.log(
-          `${CONSOLE_COLOR.green}>> Successfully Converted video into MP4: ${CONSOLE_COLOR.normal} ${outputPath}`
+          `${CONSOLE_COLOR.cyan}>> Successfully Converted video into ${format} format: ${CONSOLE_COLOR.normal}${outputPath}`
         );
       } else {
         console.log(
-          `${CONSOLE_COLOR.green}>> Successfully transferred video into the stream file.${CONSOLE_COLOR.normal}`
+          `${CONSOLE_COLOR.cyan}>> Successfully transferred video into the stream file.${CONSOLE_COLOR.normal}`
         );
       }
-      console.log(" ");
       resolve?.();
     })
     .on("error", (err) => {
       console.log(
-        `${CONSOLE_COLOR.red}>> Error while converting ts file into MP4.${CONSOLE_COLOR.normal}`
+        `${CONSOLE_COLOR.red}>> Error while converting ts file into ${format} format.${CONSOLE_COLOR.normal}`
       );
-      console.error(err);
       reject?.(err);
     });
 };
@@ -106,14 +102,24 @@ export const recursiveRequest = ({
   start: number;
   stop?: number;
 }) => {
-  return new Promise<number>((initResolve, initReject) => {
+  const promises: Promise<void>[] = [];
+  return new Promise<number>((resolve, reject) => {
     const tmpSegmentPath = getTmpCollectionFilePath(tmpDir, fileName, "txt"); // Where we will save all the info for ffmpeg will be stored.
 
     if (fse.existsSync(tmpSegmentPath)) fse.removeSync(tmpSegmentPath); // If tmpSegmentPath is exists, delete it.
 
     const makeRequest = (startIndex: number, stopIndex?: number) => {
-      const onSuccessCallback = () => {
-        initResolve(startIndex - 1);
+      const onSuccessCallback = async () => {
+        try {
+          await Promise.all(promises);
+          resolve(startIndex - 1);
+        } catch (err) {
+          reject(
+            new Error("Error while downloading video", {
+              cause: err,
+            })
+          );
+        }
       };
 
       const onNextRequest = () => {
@@ -131,7 +137,7 @@ export const recursiveRequest = ({
 
       const onErrorCallback = (err: Error) => {
         fse.removeSync(tmpTsChunkPath);
-        initReject(err);
+        reject(err);
       };
 
       const file = fse.createWriteStream(tmpTsChunkPath);
@@ -139,7 +145,7 @@ export const recursiveRequest = ({
       console.log(
         `${CONSOLE_COLOR.cyan}Downloading(${CONSOLE_COLOR.yellow}${fileName}${
           CONSOLE_COLOR.cyan
-        }): ${CONSOLE_COLOR.normal + startIndex}.ts`
+        }): ${CONSOLE_COLOR.green + startIndex}.ts${CONSOLE_COLOR.normal}`
       );
 
       const newUrl = new URL(url);
@@ -168,12 +174,15 @@ export const recursiveRequest = ({
         file.on("error", onErrorCallback);
         file.on("finish", () => {
           console.log(
-            `${CONSOLE_COLOR.cyan}Downloaded(${fileName}): ${CONSOLE_COLOR.yellow + startIndex}.ts`
+            `${CONSOLE_COLOR.cyan}Downloaded(${CONSOLE_COLOR.yellow}${fileName}${
+              CONSOLE_COLOR.cyan
+            }): ${CONSOLE_COLOR.green + startIndex}.ts${CONSOLE_COLOR.normal}`
           );
           file.close();
         });
 
         response.pipe(file);
+        promises.push(finished(file));
         onNextRequest();
       });
     };
@@ -198,6 +207,7 @@ export const mergeMultipleTsFileToSingle = (tmpDir: string, fileName: string) =>
       .save(tsOutputFilePath)
       .on("error", reject)
       .on("end", () => {
+        console.log("");
         console.log(
           `${CONSOLE_COLOR.cyan}>> Successfully Merged multiple ts files into single: ${CONSOLE_COLOR.normal}${tsOutputFilePath}`
         );

@@ -1,6 +1,6 @@
 # Video Converter TS into MP4 Script
 
-Converts .ts video files into .mp4 video files and combine
+Converts .ts video files into .mp4 video files and combine all .ts files into single .mp4 file.
 
 ## Commands
 
@@ -72,7 +72,7 @@ declare var __DEV__: boolean;
 
 // inside your code...
 if (__DEV__) {
-  console.log('foo');
+  console.log("foo");
 }
 ```
 

@@ -1,12 +1,15 @@
 export interface VideoFileDownloaderOptions {
-  name: string;
+  name?: string;
   format?: string;
   start?: number;
   stop?: number;
   tmpDir?: string;
-  deleteTmpFiles?: boolean;
-  deleteTmpFilesOnlyAfterSuccess?: boolean;
-  deleteTmpFilesOnlyAfterError?: boolean;
+  deleteTmpChunkFiles?: boolean;
+  deleteTmpChunkFilesAfterSuccess?: boolean;
+  deleteTmpChunkFilesAfterError?: boolean;
 }
 
 export type FFProbe = import("ffprobe-client").FFProbe;
+
+export type HashAlgorithm = "md5" | "sha1" | "sha256" | "sha512";
+export type HashAlgorithmEncoding = "hex" | "binary" | "base64";
