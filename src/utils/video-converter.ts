@@ -2,7 +2,7 @@ import path from "path";
 import crypto from "crypto";
 import fse from "fs-extra";
 import { Readable } from "stream";
-import { ffmpeg, ffprobe } from "../lib/ffmpeg";
+import { ffmpeg } from "../lib/ffmpeg";
 import {
   FFProbe,
   HashAlgorithm,
@@ -66,7 +66,7 @@ export const convertVideoUrlIntoFile = (inputPath: string, outputPath: string) =
   const outputPathDir = path.dirname(outputPath);
   fse.ensureDirSync(outputPathDir);
 
-  return new Promise<FFProbe>((resolve, reject) => {
+  return new Promise<{ outputPath: string }>((resolve, reject) => {
     const command = ffmpeg();
     const fileCommand = command
       .clone()
@@ -77,7 +77,11 @@ export const convertVideoUrlIntoFile = (inputPath: string, outputPath: string) =
       .videoCodec("copy")
       .outputOption("-hide_banner");
 
-    const onResolve = () => resolve(ffprobe(outputPath));
+    const onResolve = () => {
+      resolve({
+        outputPath,
+      });
+    };
     const onReject = (err: Error) => {
       fse.removeSync(outputPath);
       reject(err);
