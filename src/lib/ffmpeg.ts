@@ -1,6 +1,6 @@
 import ffmpegPath from "ffmpeg-static";
-import ffprobePath from "@ffprobe-installer/ffprobe";
-// import ffprobePath from "ffprobe-static";
+// import ffprobePath from "@ffprobe-installer/ffprobe";
+import ffprobePath from "ffprobe-static";
 import ffmpeg from "fluent-ffmpeg";
 import ffprobeClient from "ffprobe-client";
 
