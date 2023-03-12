@@ -13,3 +13,7 @@ export type FFProbe = import("ffprobe-client").FFProbe;
 
 export type HashAlgorithm = "md5" | "sha1" | "sha256" | "sha512";
 export type HashAlgorithmEncoding = "hex" | "binary" | "base64";
+
+export type FileOutput = {
+  path: string;
+};

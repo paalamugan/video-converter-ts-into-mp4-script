@@ -4,7 +4,7 @@ import fse from "fs-extra";
 import { Readable } from "stream";
 import { ffmpeg } from "../lib/ffmpeg";
 import {
-  FFProbe,
+  FileOutput,
   HashAlgorithm,
   HashAlgorithmEncoding,
   VideoFileDownloaderOptions,
@@ -66,7 +66,7 @@ export const convertVideoUrlIntoFile = (inputPath: string, outputPath: string) =
   const outputPathDir = path.dirname(outputPath);
   fse.ensureDirSync(outputPathDir);
 
-  return new Promise<{ outputPath: string }>((resolve, reject) => {
+  return new Promise<FileOutput>((resolve, reject) => {
     const command = ffmpeg();
     const fileCommand = command
       .clone()
@@ -79,7 +79,7 @@ export const convertVideoUrlIntoFile = (inputPath: string, outputPath: string) =
 
     const onResolve = () => {
       resolve({
-        outputPath,
+        path: outputPath,
       });
     };
     const onReject = (err: Error) => {
@@ -112,7 +112,7 @@ export const combineMultipleVideoUrlIntoFile = async <T extends string | null>(
   inputPath: string,
   outputPath: T,
   options?: VideoFileDownloaderOptions
-): Promise<T extends string ? FFProbe : ReturnType<typeof convertVideoUrlIntoStream>> => {
+): Promise<T extends string ? FileOutput : ReturnType<typeof convertVideoUrlIntoStream>> => {
   const {
     name,
     start = 1,
