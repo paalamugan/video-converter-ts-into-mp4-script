@@ -59,11 +59,7 @@
     "fs-extra": "^11.1.0"
   },
   "bundledDependencies": [
-    "@ffprobe-installer/ffprobe",
-    "ffmpeg-static",
-    "ffprobe-client",
-    "fluent-ffmpeg",
-    "fs-extra"
+    "node_modules/@ffprobe-installer/ffprobe"
   ],
   "author": "paalamugan",
   "size-limit": [
