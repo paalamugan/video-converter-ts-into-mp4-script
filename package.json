@@ -8,7 +8,6 @@
   "typings": "dist/index.d.ts",
   "sideEffects": false,
   "files": [
-    "ffprobe-static",
     "dist"
   ],
   "engines": {
@@ -59,6 +58,13 @@
     "fluent-ffmpeg": "^2.1.2",
     "fs-extra": "^11.1.0"
   },
+  "bundledDependencies": [
+    "@ffprobe-installer/ffprobe",
+    "ffmpeg-static",
+    "ffprobe-client",
+    "fluent-ffmpeg",
+    "fs-extra"
+  ],
   "author": "paalamugan",
   "size-limit": [
     {
