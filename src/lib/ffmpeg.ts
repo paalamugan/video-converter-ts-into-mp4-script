@@ -9,9 +9,9 @@ const ffprobePathUrl = process.env.FFPROBE_PATH || ffprobePath.path;
 ffmpegPathUrl && ffmpeg.setFfmpegPath(ffmpegPathUrl);
 ffprobePathUrl && ffmpeg.setFfprobePath(ffprobePathUrl);
 
-const ffprobe = (inputPath: string) => {
+const ffprobe = (url: string) => {
   const config = ffprobePathUrl ? { path: ffprobePathUrl } : undefined;
-  return ffprobeClient(inputPath, config);
+  return ffprobeClient(url, config);
 };
 
 export { ffmpeg, ffprobe };

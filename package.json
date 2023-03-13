@@ -7,6 +7,7 @@
   "module": "dist/video-converter-ts-into-mp4.esm.js",
   "typings": "dist/index.d.ts",
   "files": [
+    "ffprobe-installer-ffprobe-v2.0.0.tgz",
     "dist"
   ],
   "engines": {
@@ -51,7 +52,7 @@
     "release": "np"
   },
   "dependencies": {
-    "@ffprobe-installer/ffprobe": "./ffprobe-installer-ffprobe-v2.0.0.tgz",
+    "@ffprobe-installer/ffprobe": "file:./ffprobe-installer-ffprobe-v2.0.0.tgz",
     "ffmpeg-static": "^5.1.0",
     "ffprobe-client": "^1.1.6",
     "fluent-ffmpeg": "^2.1.2",
