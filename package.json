@@ -6,7 +6,6 @@
   "main": "dist/index.js",
   "module": "dist/video-converter-ts-into-mp4.esm.js",
   "typings": "dist/index.d.ts",
-  "sideEffects": false,
   "files": [
     "dist"
   ],
