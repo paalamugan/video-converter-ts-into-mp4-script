@@ -2,10 +2,8 @@
   // see https://www.typescriptlang.org/tsconfig to better understand tsconfigs
   "compilerOptions": {
     "module": "ESNext",
-    "lib": [
-      "dom",
-      "esnext"
-    ],
+    "lib": ["dom", "esnext"],
+    "downlevelIteration": true,
     "importHelpers": true,
     // output .d.ts declaration files for consumers
     "declaration": true,
@@ -39,13 +37,10 @@
       },
       {
         "transform": "typescript-transform-paths",
-        "afterDeclarations": true,
-      },
+        "afterDeclarations": true
+      }
     ],
     "declarationDir": "dist"
   },
-  "include": [
-    "src",
-    "types"
-  ],
+  "include": ["src", "types"]
 }

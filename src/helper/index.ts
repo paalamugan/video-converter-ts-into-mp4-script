@@ -5,6 +5,7 @@ import { finished } from "stream/promises";
 import fse from "fs-extra";
 import { ffmpeg } from "../lib/ffmpeg";
 import { CONSOLE_COLOR } from "../constants";
+import { AsyncPoolOptions, AsyncPoolReturnType } from "../types";
 
 export const getCurrentDate = () => {
   const date = new Date();
@@ -47,19 +48,18 @@ export const statusProgressConsole = (
   }
 ) => {
   const { outputPath, resolve, reject } = options || {};
-  const format = path.extname(outputPath || "").replace(".", "") || "mp4";
+  const baseName = path.basename(outputPath || "streaming");
+  const fileName = baseName.split(".")[0];
+  const format = baseName.split(".")[1] || "mp4";
   return command
     .on("start", function(cmd) {
       console.log(`Started: ${CONSOLE_COLOR.cyan}${cmd}`);
       console.log(" ");
     })
     .on("progress", function(data) {
+      const percent = (data.percent || 0).toFixed(2);
       console.log(
-        `${CONSOLE_COLOR.green}>> Progressing >>${CONSOLE_COLOR.normal} time: ${
-          CONSOLE_COLOR.yellow
-        }${data.timemark}${CONSOLE_COLOR.normal}, percentage: ${
-          CONSOLE_COLOR.yellow
-        }${data.percent || 0}%${CONSOLE_COLOR.normal}`
+        `${CONSOLE_COLOR.green}>> Progressing - ${CONSOLE_COLOR.cyan}${fileName}${CONSOLE_COLOR.green} >>${CONSOLE_COLOR.normal} time: ${CONSOLE_COLOR.yellow}${data.timemark}${CONSOLE_COLOR.normal}, percentage: ${CONSOLE_COLOR.yellow}${percent}%${CONSOLE_COLOR.normal}`
       );
     })
     .on("end", () => {
@@ -77,7 +77,7 @@ export const statusProgressConsole = (
     })
     .on("error", (err) => {
       console.log(
-        `${CONSOLE_COLOR.red}>> Error while converting ts file into ${format} format.${CONSOLE_COLOR.normal}`
+        `${CONSOLE_COLOR.red}>> Error while converting video file into ${format} format.${CONSOLE_COLOR.normal}`
       );
       reject?.(err);
     });
@@ -89,7 +89,7 @@ export const getFileName = (filePath: string) => {
   return fileName;
 };
 
-export const recursiveRequest = ({
+export const fetchVideoData = ({
   url,
   fileName,
   start,
@@ -103,16 +103,19 @@ export const recursiveRequest = ({
   stop?: number;
 }) => {
   const promises: Promise<void>[] = [];
-  return new Promise<number>((resolve, reject) => {
-    const tmpSegmentPath = getTmpCollectionFilePath(tmpDir, fileName, "txt"); // Where we will save all the info for ffmpeg will be stored.
+  return new Promise<{ segmentFilePath: string; totalCount: number }>((resolve, reject) => {
+    const segmentFilePath = getTmpCollectionFilePath(tmpDir, fileName, "txt"); // Where we will save all the info for ffmpeg will be stored.
 
-    if (fse.existsSync(tmpSegmentPath)) fse.removeSync(tmpSegmentPath); // If tmpSegmentPath is exists, delete it.
+    if (fse.existsSync(segmentFilePath)) fse.removeSync(segmentFilePath); // If segmentFilePath is exists, delete it.
 
     const makeRequest = (startIndex: number, stopIndex?: number) => {
       const onSuccessCallback = async () => {
         try {
           await Promise.all(promises);
-          resolve(startIndex - 1);
+          resolve({
+            segmentFilePath: segmentFilePath,
+            totalCount: startIndex - 1,
+          });
         } catch (err) {
           reject(
             new Error("Error while downloading video", {
@@ -123,13 +126,11 @@ export const recursiveRequest = ({
       };
 
       const onNextRequest = () => {
-        fse.appendFileSync(tmpSegmentPath, `file '${startIndex}.ts'\r\n`);
+        fse.appendFileSync(segmentFilePath, `file '${startIndex}.ts'\r\n`);
         makeRequest(startIndex + 1, stopIndex);
       };
 
       if (stopIndex && startIndex > stopIndex) return onSuccessCallback();
-
-      url = url.replace("{{index}}", startIndex.toString());
 
       const tmpTsChunkPath = getTmpCollectionFilePath(tmpDir, `${startIndex}`, "ts");
 
@@ -148,13 +149,17 @@ export const recursiveRequest = ({
         }): ${CONSOLE_COLOR.green + startIndex}.ts${CONSOLE_COLOR.normal}`
       );
 
-      const newUrl = new URL(url);
+      const currentSegmentUrl = url.replace("{{index}}", startIndex.toString());
+      const newUrl = new URL(currentSegmentUrl);
       const request = newUrl.protocol === "https:" ? https : http;
+
       request.get(newUrl.href, (response) => {
+        const statusCode = response.statusCode;
+        const headers = response.headers;
         if (
-          (response.statusCode && response.statusCode >= 300) ||
-          response.headers["content-type"]?.includes("text") ||
-          response.headers["content-type"]?.includes("application/json")
+          (statusCode && statusCode >= 300) ||
+          headers["content-type"]?.includes("text") ||
+          headers["content-type"]?.includes("application/json")
         ) {
           fse.removeSync(tmpTsChunkPath);
           return onSuccessCallback();
@@ -191,15 +196,11 @@ export const recursiveRequest = ({
   });
 };
 
-export const mergeMultipleTsFileToSingle = (tmpDir: string, fileName: string) => {
-  const segmentOutputFilePath = getTmpCollectionFilePath(tmpDir, fileName, "txt");
-  const tsOutputFilePath = getTmpCollectionFilePath(tmpDir, fileName, "ts");
-  const command = ffmpeg();
+export const mergeMultipleTsFileToSingle = (segmentFilePath: string) => {
+  const tsOutputFilePath = segmentFilePath.replace(".txt", ".ts");
 
   return new Promise<string>(async (resolve, reject) => {
-    command
-      .clone()
-      .addInput(segmentOutputFilePath)
+    ffmpeg(segmentFilePath)
       .inputFormat("concat")
       .audioCodec("copy")
       .videoCodec("copy")
@@ -215,4 +216,48 @@ export const mergeMultipleTsFileToSingle = (tmpDir: string, fileName: string) =>
         resolve(tsOutputFilePath);
       });
   });
+};
+
+export const getPathExtension = (url: string) => {
+  const ext = path.extname(url).replace(".", "");
+  return ext;
+};
+
+export const isJSON = (str = "") => str.startsWith("{");
+
+export const parse = ({ stdout, stderr, ...details }: any) => {
+  if (!stderr) return isJSON(stdout) ? JSON.parse(stdout) : stdout;
+  throw Object.assign(new Error(stderr), details);
+};
+
+export const asyncPool = async <T extends unknown, R, TOptions extends AsyncPoolOptions>(
+  iterable: Iterable<T>,
+  iteratorFn: (item: T, iterable?: Iterable<T>) => Promise<R>,
+  options?: TOptions
+) => {
+  const { stopOnError = true, concurrency = 1 } = options || {};
+  const allTasks: Promise<R>[] = []; // Store all asynchronous tasks
+  const executingTasks: Set<Promise<R>> = new Set(); // Stores executing asynchronous tasks
+
+  for (const item of iterable) {
+    try {
+      // Call the iteratorFn function to create an asynchronous task
+      const p = Promise.resolve().then(() => iteratorFn(item, iterable));
+
+      allTasks.push(p); // save new async task
+      executingTasks.add(p); // Save an executing asynchronous task
+
+      const clean = () => executingTasks.delete(p);
+      p.then(clean).catch(clean);
+      if (executingTasks.size >= concurrency) {
+        // Wait for faster task execution to complete
+        await Promise.race(executingTasks);
+      }
+    } catch (err) {
+      if (stopOnError) throw err;
+    }
+  }
+
+  const results = stopOnError ? Promise.all(allTasks) : Promise.allSettled(allTasks);
+  return results as AsyncPoolReturnType<TOptions, R>;
 };

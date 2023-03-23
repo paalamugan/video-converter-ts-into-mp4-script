@@ -1,6 +1,7 @@
 import path from "path";
 import crypto from "crypto";
 import fse from "fs-extra";
+import { Writable } from "stream";
 import { Readable } from "stream";
 import { ffmpeg } from "../lib/ffmpeg";
 import {
@@ -16,8 +17,9 @@ import {
   isString,
   kebabCase,
   mergeMultipleTsFileToSingle,
-  recursiveRequest,
+  fetchVideoData,
   statusProgressConsole,
+  getPathExtension,
 } from "../helper";
 
 // execSync(
@@ -40,10 +42,14 @@ export const getHashKey = (
 };
 
 export const convertVideoUrlIntoStream = (inputPath: string, format: string = "mp4") => {
-  const command = ffmpeg();
-  const streamCommand = command
-    .clone()
-    .addInput(inputPath)
+  const command = ffmpeg(inputPath);
+  const ext = getPathExtension(inputPath);
+
+  if (ext === "txt") {
+    command.inputFormat("concat");
+  }
+
+  command
     .videoCodec("copy")
     .audioCodec("copy")
     .outputOption("-hide_banner")
@@ -51,47 +57,81 @@ export const convertVideoUrlIntoStream = (inputPath: string, format: string = "m
     .outputOption("-bsf:a aac_adtstoasc")
     .outputFormat(format);
 
-  statusProgressConsole(streamCommand);
+  statusProgressConsole(command);
 
-  return streamCommand.pipe();
+  return command.pipe();
 };
 
-export const convertVideoUrlIntoFile = (inputPath: string, outputPath: string) => {
-  if (!path.extname(outputPath).length) {
-    throw new Error(EXTENSION_REQUIRED_ERROR_MESSAGE);
+export const convertVideoUrlIntoFile = <
+  T extends string | Writable,
+  ResultType = T extends string ? FileOutput : Writable
+>(
+  inputPath: string,
+  outputPath: T,
+  options?: {
+    format?: string;
+    timeout?: number;
+  }
+) => {
+  const isOutputPathString = isString(outputPath);
+  const outputResult = isOutputPathString ? path.resolve(outputPath) : outputPath;
+  const outputExt = isOutputPathString ? getPathExtension(outputPath) : null;
+
+  // timeout: default 5 minutes in seconds
+  const { format = "mp4", timeout = 5 * 60 } = options || {};
+  const outputFormat = outputExt || format;
+
+  if (isString(outputResult)) {
+    const outputPathDir = path.dirname(outputResult);
+    fse.ensureDirSync(outputPathDir);
   }
 
-  outputPath = path.resolve(outputPath);
+  return new Promise<ResultType>((resolve, reject) => {
+    const command = ffmpeg(inputPath, {
+      timeout: timeout,
+    });
+    const ext = getPathExtension(inputPath);
 
-  const outputPathDir = path.dirname(outputPath);
-  fse.ensureDirSync(outputPathDir);
+    if (ext === "txt") {
+      command.inputFormat("concat");
+    }
 
-  return new Promise<FileOutput>((resolve, reject) => {
-    const command = ffmpeg();
-    const fileCommand = command
-      .clone()
-      .addInput(inputPath)
-      // .audioCodec('libmp3lame')
-      // .videoCodec('libx264')
+    command
+      // .audioCodec("libmp3lame")
+      // .videoCodec("libx264")
       .audioCodec("copy")
       .videoCodec("copy")
+      .outputFormat(outputFormat)
       .outputOption("-hide_banner");
 
+    if (!isOutputPathString) {
+      command
+        .outputOption("-movflags frag_keyframe+empty_moov")
+        .outputOption("-bsf:a aac_adtstoasc");
+    }
+
     const onResolve = () => {
-      resolve({
-        path: outputPath,
-      });
+      if (isString(outputResult)) {
+        resolve({
+          path: outputResult,
+        } as ResultType);
+      } else {
+        resolve((outputResult as unknown) as ResultType);
+      }
     };
+
     const onReject = (err: Error) => {
-      fse.removeSync(outputPath);
+      isString(outputResult) && fse.removeSync(outputResult);
       reject(err);
     };
-    statusProgressConsole(fileCommand, {
-      outputPath: outputPath,
+
+    statusProgressConsole(command, {
+      outputPath: isString(outputResult) ? outputResult : undefined,
       resolve: onResolve,
       reject: onReject,
     });
-    fileCommand.save(outputPath);
+
+    command.output(outputResult).run();
   });
 };
 
@@ -142,7 +182,7 @@ export const combineMultipleVideoUrlIntoFile = async <T extends string | null>(
   const stopIndex = /{{index}}/.test(inputPath) ? stop : 1;
 
   try {
-    const totalCount = await recursiveRequest({
+    const { totalCount, segmentFilePath } = await fetchVideoData({
       url: inputPath,
       tmpDir: tmpDirPath,
       fileName,
@@ -152,7 +192,10 @@ export const combineMultipleVideoUrlIntoFile = async <T extends string | null>(
 
     if (totalCount < 1) {
       throw new Error(
-        `No video was found in this specified url "${inputPath}". Please provide a valid video format url.`
+        `No video was found in this specified url "${inputPath.replace(
+          "{{index}}",
+          startIndex.toString()
+        )}". Please provide a valid video format url.`
       );
     }
 
@@ -163,7 +206,7 @@ export const combineMultipleVideoUrlIntoFile = async <T extends string | null>(
         CONSOLE_COLOR.normal} .ts files. Now let's merge them all into one..`
     );
 
-    const tsOutputFilePath = await mergeMultipleTsFileToSingle(tmpDirPath, fileName);
+    const tsOutputFilePath = await mergeMultipleTsFileToSingle(segmentFilePath);
 
     let result: any;
     if (typeof outputPath === "string") {
@@ -179,7 +222,8 @@ export const combineMultipleVideoUrlIntoFile = async <T extends string | null>(
   } catch (err) {
     const terminalErrorMessage = `${CONSOLE_COLOR.red} >> Download failed: ${
       CONSOLE_COLOR.normal
-    } While Downloading ${CONSOLE_COLOR.yellow + inputPath}${CONSOLE_COLOR.normal} video.`;
+    } While Downloading ${CONSOLE_COLOR.yellow +
+      inputPath.replace("{{index}}", startIndex.toString())}${CONSOLE_COLOR.normal} video.`;
 
     console.error(terminalErrorMessage);
     console.log("");
@@ -208,4 +252,33 @@ export const combineMultipleVideoUrlIntoStream = (
   options?: VideoFileDownloaderOptions
 ) => {
   return combineMultipleVideoUrlIntoFile(inputPath, null, options);
+};
+
+export const convertM3u8ToVideoFile = async <T extends string | Writable>(
+  inputPath: string,
+  outputPath: T,
+  options?: {
+    format?: string;
+  }
+) => {
+  try {
+    const result = await convertVideoUrlIntoFile(inputPath, outputPath, options);
+    return result;
+  } catch (err) {
+    if (isString(outputPath)) {
+      fse.removeSync(outputPath);
+    } else {
+      outputPath.end();
+    }
+    const errorMessage = `Download failed: While Downloading ${inputPath} video.`;
+    throw new Error(errorMessage, {
+      cause: {
+        err: err,
+      },
+    });
+  }
+};
+
+export const convertM3u8ToVideoStream = (inputPath: string, format?: string) => {
+  return convertVideoUrlIntoStream(inputPath, format);
 };

@@ -2,6 +2,20 @@
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true,
   "editor.tabSize": 2,
-  "cSpell.words": ["ffbinaries", "ffprobe", "libmp", "libx", "nodenext", "timemark", "Tsdx"],
+  "cSpell.words": [
+    "adtstoasc",
+    "Execa",
+    "ffbinaries",
+    "ffprobe",
+    "libmp",
+    "libx",
+    "moov",
+    "movflags",
+    "naruto",
+    "nodenext",
+    "shippuden",
+    "timemark",
+    "Tsdx"
+  ],
   "typescript.tsdk": "node_modules/typescript/lib"
 }

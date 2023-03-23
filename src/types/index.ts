@@ -17,3 +17,13 @@ export type HashAlgorithmEncoding = "hex" | "binary" | "base64";
 export type FileOutput = {
   path: string;
 };
+
+export interface AsyncPoolOptions {
+  stopOnError?: boolean;
+  concurrency?: number;
+}
+
+export type AsyncPoolReturnType<
+  TOptions extends AsyncPoolOptions,
+  R
+> = TOptions["stopOnError"] extends false ? Promise<PromiseSettledResult<R>[]> : Promise<R[]>;

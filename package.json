@@ -48,13 +48,15 @@
     "prepare": "husky install && yarn build",
     "size": "size-limit",
     "analyze": "size-limit --why",
-    "release": "np"
+    "release": "np",
+    "download": "node ./scripts/video-download.js"
   },
   "dependencies": {
     "ffmpeg-static": "^5.1.0",
     "ffprobe-client": "^1.1.6",
     "fluent-ffmpeg": "^2.1.2",
-    "fs-extra": "^11.1.0"
+    "fs-extra": "^11.1.0",
+    "youtube-dl-exec": "^2.4.0"
   },
   "author": "paalamugan",
   "size-limit": [
@@ -71,6 +73,7 @@
     "@rollup/plugin-alias": "^4.0.3",
     "@rollup/plugin-node-resolve": "^15.0.1",
     "@size-limit/preset-small-lib": "^8.2.4",
+    "@types/ffmpeg-static": "^3.0.1",
     "@types/ffprobe-static": "^2.0.1",
     "@types/fluent-ffmpeg": "^2.1.21",
     "@types/fs-extra": "^11.0.1",

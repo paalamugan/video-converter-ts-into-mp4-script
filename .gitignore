@@ -6,3 +6,5 @@ tmp
 output
 .npmrc
 binaries
+downloaded.json
+failed.json
